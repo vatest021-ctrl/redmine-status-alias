@@ -2,19 +2,19 @@
   selected_role_ids = RedmineStatusAlias::Settings.client_role_ids
   selected_internal_role_ids = RedmineStatusAlias::Settings.internal_role_ids
   aliases = RedmineStatusAlias::Settings.status_aliases
+  client_transition_targets = RedmineStatusAlias::Settings.client_transition_targets
   roles = Role.order(:position).to_a
   client_roles = RedmineStatusAlias::Settings.client_view_roles
   statuses = IssueStatus.order(:position).to_a
   status_options = [[l(:label_status_alias_no_alias), ""]] +
                    statuses.map { |status| [RedmineStatusAlias::Settings.raw_status_name(status), status.id.to_s] }
-  alias_groups = aliases.each_with_object(Hash.new { |hash, key| hash[key] = [] }) do |(source_id, alias_id), grouped|
-    next if alias_id.blank?
-
-    grouped[alias_id.to_s] << source_id.to_s
-  end
-  duplicate_alias_groups = alias_groups.select { |_alias_id, source_ids| source_ids.size > 1 }
+  duplicate_alias_groups = RedmineStatusAlias::Settings.ambiguous_client_choice_groups(statuses)
   status_ids = statuses.map { |status| status.id.to_s }
   missing_alias_ids = aliases.values.map(&:to_s).reject(&:blank?).uniq - status_ids
+  transition_reference_ids = client_transition_targets.flat_map do |source_id, alias_rules|
+    [source_id.to_s] + alias_rules.flat_map { |alias_id, target_id| [alias_id.to_s, target_id.to_s] }
+  end
+  missing_transition_status_ids = transition_reference_ids.uniq - status_ids
 %>
 
 <div class="box tabular settings">
@@ -62,19 +62,60 @@
     </table>
   </fieldset>
 
+  <fieldset class="box">
+    <legend><%= l(:label_status_alias_client_transitions) %></legend>
+    <%= hidden_field_tag "settings[client_transition_targets][_clear]", "" %>
+    <p><em class="info"><%= l(:text_status_alias_client_transitions_hint) %></em></p>
+
+    <% if duplicate_alias_groups.any? %>
+      <table class="list">
+        <thead>
+          <tr>
+            <th><%= l(:label_status_alias_current_status) %></th>
+            <th><%= l(:label_status_alias_client_choice) %></th>
+            <th><%= l(:label_status_alias_actual_target_status) %></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% statuses.each do |source_status| %>
+            <% duplicate_alias_groups.each do |alias_id, target_statuses| %>
+              <%
+                alias_status = statuses.detect { |status| status.id.to_s == alias_id.to_s }
+                transition_options = [[l(:label_status_alias_no_transition_rule), ""]] +
+                                     target_statuses.map do |target_status|
+                                       [RedmineStatusAlias::Settings.raw_status_name(target_status), target_status.id.to_s]
+                                     end
+                selected_target_id = client_transition_targets.dig(source_status.id.to_s, alias_id.to_s).to_s
+              %>
+              <% if alias_status %>
+                <tr>
+                  <td><%= RedmineStatusAlias::Settings.raw_status_name(source_status) %></td>
+                  <td><%= RedmineStatusAlias::Settings.raw_status_name(alias_status) %></td>
+                  <td>
+                    <%= select_tag "settings[client_transition_targets][#{source_status.id}][#{alias_id}]",
+                                   options_for_select(transition_options, selected_target_id) %>
+                  </td>
+                </tr>
+              <% end %>
+            <% end %>
+          <% end %>
+        </tbody>
+      </table>
+    <% else %>
+      <p class="nodata"><%= l(:text_status_alias_no_ambiguous_transitions) %></p>
+    <% end %>
+  </fieldset>
+
   <p class="nodata"><%= l(:text_status_alias_behavior_hint) %></p>
 
   <% if duplicate_alias_groups.any? %>
     <div class="warning">
       <p><strong><%= l(:label_status_alias_duplicate_aliases) %></strong></p>
       <ul>
-        <% duplicate_alias_groups.each do |alias_id, source_ids| %>
+        <% duplicate_alias_groups.each do |alias_id, target_statuses| %>
           <%
             alias_status = statuses.detect { |status| status.id.to_s == alias_id }
-            source_names = source_ids.filter_map do |source_id|
-              source_status = statuses.detect { |status| status.id.to_s == source_id }
-              RedmineStatusAlias::Settings.raw_status_name(source_status) if source_status
-            end
+            source_names = target_statuses.map { |status| RedmineStatusAlias::Settings.raw_status_name(status) }
           %>
           <% if alias_status && source_names.any? %>
             <li>
@@ -93,6 +134,15 @@
       <p>
         <strong><%= l(:label_status_alias_missing_aliases) %></strong>
         <%= l(:text_status_alias_missing_aliases, status_ids: missing_alias_ids.join(", ")) %>
+      </p>
+    </div>
+  <% end %>
+
+  <% if missing_transition_status_ids.any? %>
+    <div class="warning">
+      <p>
+        <strong><%= l(:label_status_alias_missing_transitions) %></strong>
+        <%= l(:text_status_alias_missing_transitions, status_ids: missing_transition_status_ids.join(", ")) %>
       </p>
     </div>
   <% end %>

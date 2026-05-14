@@ -4,6 +4,7 @@ module RedmineStatusAlias
       "client_role_ids" => [],
       "internal_role_ids" => [],
       "status_aliases" => {},
+      "client_transition_targets" => {},
     }.freeze
     CLIENT_VIEW_PERMISSION = :view_status_aliases
 
@@ -43,8 +44,47 @@ module RedmineStatusAlias
       aliases.is_a?(Hash) ? aliases : {}
     end
 
+    def client_transition_targets
+      transition_targets = settings["client_transition_targets"]
+      return {} unless transition_targets.is_a?(Hash)
+
+      transition_targets.each_with_object({}) do |(source_status_id, alias_rules), sanitized|
+        next unless positive_integer_string?(source_status_id)
+        next unless alias_rules.is_a?(Hash)
+
+        rules = alias_rules.each_with_object({}) do |(alias_status_id, target_status_id), result|
+          next unless positive_integer_string?(alias_status_id)
+          next if target_status_id.blank?
+          next unless positive_integer_string?(target_status_id)
+
+          result[alias_status_id.to_s] = target_status_id.to_s
+        end
+
+        sanitized[source_status_id.to_s] = rules if rules.any?
+      end
+    end
+
     def alias_status_id_for(status_id)
       value = status_aliases[status_id.to_s]
+      value.present? ? value.to_i : nil
+    end
+
+    def client_choice_status_id_for(status)
+      alias_status_id_for(status.id) || status.id
+    end
+
+    def client_choice_groups(statuses)
+      Array(statuses).each_with_object(Hash.new { |hash, key| hash[key] = [] }) do |status, grouped|
+        grouped[client_choice_status_id_for(status).to_s] << status
+      end
+    end
+
+    def ambiguous_client_choice_groups(statuses)
+      client_choice_groups(statuses).select { |_alias_status_id, grouped_statuses| grouped_statuses.size > 1 }
+    end
+
+    def client_transition_target_id_for(source_status_id, alias_status_id)
+      value = client_transition_targets.dig(source_status_id.to_s, alias_status_id.to_s)
       value.present? ? value.to_i : nil
     end
 
@@ -80,6 +120,36 @@ module RedmineStatusAlias
         status.redmine_status_alias_project = project if status.respond_to?(:redmine_status_alias_project=)
       end
       statuses
+    end
+
+    def client_transition_statuses(statuses, issue:, user:, include_default: false)
+      statuses = Array(statuses)
+      project = issue.respond_to?(:project) ? issue.project : nil
+      return statuses unless alias_context_applies?(user, project: project)
+
+      source_status_id = issue.respond_to?(:status_id) ? issue.status_id.to_i : nil
+      grouped_statuses = client_choice_groups(statuses)
+      handled_alias_status_ids = []
+
+      statuses.flat_map do |status|
+        alias_status_id = client_choice_status_id_for(status).to_s
+        next if handled_alias_status_ids.include?(alias_status_id)
+
+        handled_alias_status_ids << alias_status_id
+        grouped = grouped_statuses[alias_status_id]
+        current_status = grouped.detect { |status| source_status_id.present? && status.id == source_status_id }
+
+        if include_default && current_status
+          current_status
+        elsif grouped.size > 1
+          configured_target_id = client_transition_target_id_for(source_status_id, alias_status_id)
+          configured_target = grouped.detect { |status| status.id == configured_target_id }
+
+          configured_target || grouped
+        else
+          grouped.first
+        end
+      end.compact
     end
 
     def raw_status_name(status)
@@ -169,6 +239,10 @@ module RedmineStatusAlias
 
     def configured_role_ids(setting_key)
       Array(settings[setting_key]).reject(&:blank?).map(&:to_i)
+    end
+
+    def positive_integer_string?(value)
+      value.to_s.match?(/\A[1-9]\d*\z/)
     end
 
     def role_has_permission?(role, permission)

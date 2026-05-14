@@ -8,6 +8,13 @@ module RedmineStatusAlias
 
     def new_statuses_allowed_to(user = User.current, include_default = false)
       statuses = super
+      statuses = RedmineStatusAlias::Settings.client_transition_statuses(
+        statuses,
+        issue: self,
+        user: user,
+        include_default: include_default
+      )
+
       RedmineStatusAlias::Settings.assign_project_to_statuses(statuses, project)
     end
   end
