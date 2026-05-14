@@ -14,19 +14,11 @@ module RedmineStatusAlias
       if field.to_s == "status"
         project = RedmineStatusAlias::Context.project
         user = RedmineStatusAlias::Context.user || User.current
-        force_alias =
-          RedmineStatusAlias::Context.force_alias? ||
-          (
-            project.present? &&
-            RedmineStatusAlias::Settings.force_aliases_for_recipientless_channels? &&
-            RedmineStatusAlias::Settings.recipientless_user?(user)
-          )
 
         return RedmineStatusAlias::Settings.visible_name_for_status_id(
           id,
           user: user,
-          project: project,
-          force_alias: force_alias
+          project: project
         ) if project
       end
 

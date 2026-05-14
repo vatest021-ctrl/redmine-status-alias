@@ -3,7 +3,6 @@ module RedmineStatusAlias
     DEFAULTS = {
       "client_role_ids" => [],
       "internal_role_ids" => [],
-      "force_aliases_for_recipientless_channels" => "1",
       "status_aliases" => {},
     }.freeze
 
@@ -28,14 +27,6 @@ module RedmineStatusAlias
       Array(settings["internal_role_ids"]).reject(&:blank?).map(&:to_i)
     end
 
-    def force_aliases_for_recipientless_channels?
-      settings["force_aliases_for_recipientless_channels"].to_s == "1"
-    end
-
-    def recipientless_user?(user)
-      user.blank? || (user.respond_to?(:anonymous?) && user.anonymous?)
-    end
-
     def status_aliases
       aliases = settings["status_aliases"]
       aliases.is_a?(Hash) ? aliases : {}
@@ -46,9 +37,9 @@ module RedmineStatusAlias
       value.present? ? value.to_i : nil
     end
 
-    def visible_name_for(status, user: User.current, project: nil, allow_global: false, force_alias: false)
+    def visible_name_for(status, user: User.current, project: nil, allow_global: false)
       return if status.blank?
-      return unless alias_context_applies?(user, project: project, allow_global: allow_global, force_alias: force_alias)
+      return unless alias_context_applies?(user, project: project, allow_global: allow_global)
 
       alias_name_for(status)
     rescue StandardError => e
@@ -66,11 +57,11 @@ module RedmineStatusAlias
       raw_status_name(alias_status)
     end
 
-    def visible_name_for_status_id(status_id, user: User.current, project: nil, allow_global: false, force_alias: false)
+    def visible_name_for_status_id(status_id, user: User.current, project: nil, allow_global: false)
       status = IssueStatus.find_by(id: status_id)
       return if status.blank?
 
-      visible_name_for(status, user: user, project: project, allow_global: allow_global, force_alias: force_alias) || raw_status_name(status)
+      visible_name_for(status, user: user, project: project, allow_global: allow_global) || raw_status_name(status)
     end
 
     def assign_project_to_statuses(statuses, project)
@@ -88,11 +79,11 @@ module RedmineStatusAlias
       end
     end
 
-    def alias_context_applies?(user, project: nil, allow_global: false, force_alias: false)
+    def alias_context_applies?(user, project: nil, allow_global: false)
       if project.present?
-        enabled_for_project?(project) && (force_alias || applies_to_user?(user, project: project))
+        enabled_for_project?(project) && applies_to_user?(user, project: project)
       elsif allow_global
-        force_alias || applies_to_user_in_any_enabled_project?(user)
+        applies_to_user_in_any_enabled_project?(user)
       else
         false
       end

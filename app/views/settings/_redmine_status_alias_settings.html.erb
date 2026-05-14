@@ -1,7 +1,6 @@
 <%
   selected_role_ids = RedmineStatusAlias::Settings.client_role_ids
   selected_internal_role_ids = RedmineStatusAlias::Settings.internal_role_ids
-  force_recipientless = RedmineStatusAlias::Settings.force_aliases_for_recipientless_channels?
   aliases = RedmineStatusAlias::Settings.status_aliases
   roles = Role.order(:position).to_a
   statuses = IssueStatus.order(:position).to_a
@@ -36,13 +35,6 @@
                    multiple: true,
                    size: [[roles.size, 8].min, 1].max %>
     <em class="info"><%= l(:text_status_alias_internal_roles_hint) %></em>
-  </p>
-
-  <p>
-    <%= label_tag "settings_force_aliases_for_recipientless_channels", l(:label_status_alias_force_recipientless_channels) %>
-    <%= hidden_field_tag "settings[force_aliases_for_recipientless_channels]", "0" %>
-    <%= check_box_tag "settings[force_aliases_for_recipientless_channels]", "1", force_recipientless %>
-    <em class="info"><%= l(:text_status_alias_force_recipientless_channels_hint) %></em>
   </p>
 
   <fieldset class="box">
