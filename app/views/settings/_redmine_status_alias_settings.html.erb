@@ -3,6 +3,7 @@
   selected_internal_role_ids = RedmineStatusAlias::Settings.internal_role_ids
   aliases = RedmineStatusAlias::Settings.status_aliases
   roles = Role.order(:position).to_a
+  client_roles = RedmineStatusAlias::Settings.client_view_roles
   statuses = IssueStatus.order(:position).to_a
   status_options = [[l(:label_status_alias_no_alias), ""]] +
                    statuses.map { |status| [RedmineStatusAlias::Settings.raw_status_name(status), status.id.to_s] }
@@ -21,9 +22,9 @@
     <%= label_tag "settings_client_role_ids", l(:label_status_alias_client_roles) %>
     <%= hidden_field_tag "settings[client_role_ids][]", "" %>
     <%= select_tag "settings[client_role_ids][]",
-                   options_from_collection_for_select(roles, :id, :name, selected_role_ids),
+                   options_from_collection_for_select(client_roles, :id, :name, selected_role_ids),
                    multiple: true,
-                   size: [[roles.size, 8].min, 1].max %>
+                   size: [[client_roles.size, 8].min, 1].max %>
     <em class="info"><%= l(:text_status_alias_client_roles_hint) %></em>
   </p>
 

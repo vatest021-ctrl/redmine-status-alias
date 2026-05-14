@@ -5,6 +5,7 @@ module RedmineStatusAlias
       "internal_role_ids" => [],
       "status_aliases" => {},
     }.freeze
+    CLIENT_VIEW_PERMISSION = :view_status_aliases
 
     module_function
 
@@ -20,11 +21,21 @@ module RedmineStatusAlias
     end
 
     def client_role_ids
-      Array(settings["client_role_ids"]).reject(&:blank?).map(&:to_i)
+      configured_role_ids("client_role_ids")
     end
 
     def internal_role_ids
-      Array(settings["internal_role_ids"]).reject(&:blank?).map(&:to_i)
+      configured_role_ids("internal_role_ids")
+    end
+
+    def client_view_roles
+      return [] unless defined?(Role)
+
+      Role.order(:position).to_a.select { |role| role_has_permission?(role, CLIENT_VIEW_PERMISSION) }
+    end
+
+    def client_view_role_ids
+      client_view_roles.map(&:id)
     end
 
     def status_aliases
@@ -96,10 +107,11 @@ module RedmineStatusAlias
       selected_role_ids = client_role_ids
       return false if selected_role_ids.empty?
 
-      role_ids = role_ids_for(user, project: project)
+      roles = roles_for(user, project: project)
+      role_ids = roles.map(&:id)
       return false if (role_ids & internal_role_ids).any?
 
-      (role_ids & selected_role_ids).any?
+      roles.any? { |role| selected_role_ids.include?(role.id) && role_has_permission?(role, CLIENT_VIEW_PERMISSION) }
     end
 
     def applies_to_user_in_any_enabled_project?(user)
@@ -112,25 +124,33 @@ module RedmineStatusAlias
       enabled_memberships = memberships_for(user).select { |membership| enabled_for_project?(membership.project) }
       return false if enabled_memberships.any? { |membership| (membership_role_ids(membership) & internal_role_ids).any? }
 
-      enabled_memberships.any? { |membership| (membership_role_ids(membership) & selected_role_ids).any? }
+      enabled_memberships.any? do |membership|
+        membership_roles(membership).any? do |role|
+          selected_role_ids.include?(role.id) && role_has_permission?(role, CLIENT_VIEW_PERMISSION)
+        end
+      end
     end
 
     def role_ids_for(user, project: nil)
-      ids = []
+      roles_for(user, project: project).map(&:id)
+    end
+
+    def roles_for(user, project: nil)
+      roles = []
 
       if user.respond_to?(:anonymous?) && user.anonymous? && defined?(Role)
         anonymous_role = Role.respond_to?(:anonymous) ? Role.anonymous : nil
-        ids << anonymous_role.id if anonymous_role
+        roles << anonymous_role if anonymous_role
       end
 
       if user.respond_to?(:memberships)
         memberships = memberships_for(user)
         memberships = memberships.select { |membership| membership.project_id == project.id } if project
 
-        ids.concat(memberships.flat_map { |membership| membership_role_ids(membership) })
+        roles.concat(memberships.flat_map { |membership| membership_roles(membership) })
       end
 
-      ids.compact.uniq
+      roles.compact.uniq { |role| role.id }
     end
 
     def memberships_for(user)
@@ -140,7 +160,25 @@ module RedmineStatusAlias
     end
 
     def membership_role_ids(membership)
-      membership.respond_to?(:roles) ? membership.roles.map(&:id) : []
+      membership_roles(membership).map(&:id)
+    end
+
+    def membership_roles(membership)
+      membership.respond_to?(:roles) ? membership.roles.to_a : []
+    end
+
+    def configured_role_ids(setting_key)
+      Array(settings[setting_key]).reject(&:blank?).map(&:to_i)
+    end
+
+    def role_has_permission?(role, permission)
+      if role.respond_to?(:has_permission?)
+        role.has_permission?(permission)
+      elsif role.respond_to?(:permissions)
+        Array(role.permissions).compact.map(&:to_sym).include?(permission.to_sym)
+      else
+        false
+      end
     end
   end
 end

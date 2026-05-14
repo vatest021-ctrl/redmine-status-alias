@@ -45,7 +45,7 @@ Redmine::Plugin.register :redmine_status_alias do
   requires_redmine version_or_higher: "6.0.0"
 
   project_module :status_alias do
-    permission :view_status_aliases, {}, public: true, read: true
+    permission :view_status_aliases, {}, require: :member, read: true
   end
 
   settings default: RedmineStatusAlias::Settings::DEFAULTS,
