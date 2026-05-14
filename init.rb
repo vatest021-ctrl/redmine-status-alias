@@ -29,6 +29,8 @@ Rails.configuration.to_prepare do
     if defined?(ReportsController) && !ReportsController.ancestors.include?(RedmineStatusAlias::ReportsControllerPatch)
       ReportsController.prepend RedmineStatusAlias::ReportsControllerPatch
     end
+
+    RedmineStatusAlias::IntouchPatch.apply!
   rescue StandardError => e
     warn "[redmine_status_alias] Failed to include patches: #{e.class}: #{e.message}"
     warn Array(e.backtrace).first(10).join("\n")
