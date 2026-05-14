@@ -1,9 +1,10 @@
 ru:
-  label_status_alias_enabled: "Включить клиентские алиасы статусов"
+  project_module_status_alias: "Клиентские алиасы статусов"
+  permission_view_status_aliases: "Видеть клиентские алиасы статусов"
   label_status_alias_client_roles: "Клиентские роли"
   label_status_alias_mappings: "Соответствие статусов"
   label_status_alias_internal_status: "Внутренний статус"
   label_status_alias_customer_status: "Статус для клиента"
   label_status_alias_no_alias: "Без замены"
-  text_status_alias_client_roles_hint: "Пользователи с выбранными ролями будут видеть клиентские названия статусов. Администраторы всегда видят внутренние статусы."
-  text_status_alias_behavior_hint: "Плагин меняет только отображаемое название статуса. Статусы задач, workflow и история Redmine остаются без изменений."
+  text_status_alias_client_roles_hint: "Пользователи с выбранными ролями будут видеть клиентские названия статусов только в проектах, где включен модуль плагина. Администраторы всегда видят внутренние статусы."
+  text_status_alias_behavior_hint: "Плагин меняет только отображаемое название статуса в проектах с включенным модулем. Статусы задач, workflow и история Redmine остаются без изменений."

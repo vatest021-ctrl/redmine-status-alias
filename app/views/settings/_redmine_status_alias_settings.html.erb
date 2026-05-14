@@ -1,5 +1,4 @@
 <%
-  plugin_settings = RedmineStatusAlias::Settings.settings
   selected_role_ids = RedmineStatusAlias::Settings.client_role_ids
   aliases = RedmineStatusAlias::Settings.status_aliases
   roles = Role.order(:position).to_a
@@ -9,12 +8,6 @@
 %>
 
 <div class="box tabular settings">
-  <p>
-    <%= label_tag "settings_enabled", l(:label_status_alias_enabled) %>
-    <%= hidden_field_tag "settings[enabled]", "0" %>
-    <%= check_box_tag "settings[enabled]", "1", plugin_settings["enabled"].to_s == "1" %>
-  </p>
-
   <p>
     <%= label_tag "settings_client_role_ids", l(:label_status_alias_client_roles) %>
     <%= hidden_field_tag "settings[client_role_ids][]", "" %>

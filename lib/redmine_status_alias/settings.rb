@@ -1,7 +1,6 @@
 module RedmineStatusAlias
   module Settings
     DEFAULTS = {
-      "enabled" => "0",
       "client_role_ids" => [],
       "status_aliases" => {},
     }.freeze
@@ -13,8 +12,10 @@ module RedmineStatusAlias
       DEFAULTS.merge(raw.is_a?(Hash) ? raw : {})
     end
 
-    def enabled?
-      settings["enabled"].to_s == "1"
+    def enabled_for_project?(project)
+      return false if project.blank?
+
+      project.module_enabled?(:status_alias)
     end
 
     def client_role_ids
@@ -31,9 +32,9 @@ module RedmineStatusAlias
       value.present? ? value.to_i : nil
     end
 
-    def visible_name_for(status, user: User.current)
-      return unless enabled?
-      return unless applies_to_user?(user)
+    def visible_name_for(status, user: User.current, project: nil)
+      return unless enabled_for_project?(project)
+      return unless applies_to_user?(user, project: project)
 
       alias_id = alias_status_id_for(status.id)
       return if alias_id.blank? || alias_id == status.id
@@ -55,17 +56,17 @@ module RedmineStatusAlias
       end
     end
 
-    def applies_to_user?(user)
+    def applies_to_user?(user, project: nil)
       return false if user.blank?
       return false if user.respond_to?(:admin?) && user.admin?
 
       selected_role_ids = client_role_ids
       return false if selected_role_ids.empty?
 
-      (role_ids_for(user) & selected_role_ids).any?
+      (role_ids_for(user, project: project) & selected_role_ids).any?
     end
 
-    def role_ids_for(user)
+    def role_ids_for(user, project: nil)
       ids = []
 
       if user.respond_to?(:anonymous?) && user.anonymous? && defined?(Role)
@@ -74,11 +75,10 @@ module RedmineStatusAlias
       end
 
       if user.respond_to?(:memberships)
-        ids.concat(
-          user.memberships.to_a.flat_map do |membership|
-            membership.respond_to?(:roles) ? membership.roles.map(&:id) : []
-          end
-        )
+        memberships = user.memberships.to_a
+        memberships = memberships.select { |membership| membership.project_id == project.id } if project
+
+        ids.concat(memberships.flat_map { |membership| membership.respond_to?(:roles) ? membership.roles.map(&:id) : [] })
       end
 
       ids.compact.uniq
