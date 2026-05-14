@@ -1,0 +1,53 @@
+<%
+  plugin_settings = RedmineStatusAlias::Settings.settings
+  selected_role_ids = RedmineStatusAlias::Settings.client_role_ids
+  aliases = RedmineStatusAlias::Settings.status_aliases
+  roles = Role.order(:position).to_a
+  statuses = IssueStatus.order(:position).to_a
+  status_options = [[l(:label_status_alias_no_alias), ""]] +
+                   statuses.map { |status| [RedmineStatusAlias::Settings.raw_status_name(status), status.id.to_s] }
+%>
+
+<div class="box tabular settings">
+  <p>
+    <%= label_tag "settings_enabled", l(:label_status_alias_enabled) %>
+    <%= hidden_field_tag "settings[enabled]", "0" %>
+    <%= check_box_tag "settings[enabled]", "1", plugin_settings["enabled"].to_s == "1" %>
+  </p>
+
+  <p>
+    <%= label_tag "settings_client_role_ids", l(:label_status_alias_client_roles) %>
+    <%= hidden_field_tag "settings[client_role_ids][]", "" %>
+    <%= select_tag "settings[client_role_ids][]",
+                   options_from_collection_for_select(roles, :id, :name, selected_role_ids),
+                   multiple: true,
+                   size: [[roles.size, 8].min, 1].max %>
+    <em class="info"><%= l(:text_status_alias_client_roles_hint) %></em>
+  </p>
+
+  <fieldset class="box">
+    <legend><%= l(:label_status_alias_mappings) %></legend>
+
+    <table class="list">
+      <thead>
+        <tr>
+          <th><%= l(:label_status_alias_internal_status) %></th>
+          <th><%= l(:label_status_alias_customer_status) %></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% statuses.each do |status| %>
+          <tr class="<%= cycle("odd", "even") %>">
+            <td><%= RedmineStatusAlias::Settings.raw_status_name(status) %></td>
+            <td>
+              <%= select_tag "settings[status_aliases][#{status.id}]",
+                             options_for_select(status_options, aliases[status.id.to_s].to_s) %>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </fieldset>
+
+  <p class="nodata"><%= l(:text_status_alias_behavior_hint) %></p>
+</div>
