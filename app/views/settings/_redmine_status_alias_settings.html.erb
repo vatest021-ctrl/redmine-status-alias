@@ -1,10 +1,19 @@
 <%
   selected_role_ids = RedmineStatusAlias::Settings.client_role_ids
+  selected_internal_role_ids = RedmineStatusAlias::Settings.internal_role_ids
   aliases = RedmineStatusAlias::Settings.status_aliases
   roles = Role.order(:position).to_a
   statuses = IssueStatus.order(:position).to_a
   status_options = [[l(:label_status_alias_no_alias), ""]] +
                    statuses.map { |status| [RedmineStatusAlias::Settings.raw_status_name(status), status.id.to_s] }
+  alias_groups = aliases.each_with_object(Hash.new { |hash, key| hash[key] = [] }) do |(source_id, alias_id), grouped|
+    next if alias_id.blank?
+
+    grouped[alias_id.to_s] << source_id.to_s
+  end
+  duplicate_alias_groups = alias_groups.select { |_alias_id, source_ids| source_ids.size > 1 }
+  status_ids = statuses.map { |status| status.id.to_s }
+  missing_alias_ids = aliases.values.map(&:to_s).reject(&:blank?).uniq - status_ids
 %>
 
 <div class="box tabular settings">
@@ -16,6 +25,16 @@
                    multiple: true,
                    size: [[roles.size, 8].min, 1].max %>
     <em class="info"><%= l(:text_status_alias_client_roles_hint) %></em>
+  </p>
+
+  <p>
+    <%= label_tag "settings_internal_role_ids", l(:label_status_alias_internal_roles) %>
+    <%= hidden_field_tag "settings[internal_role_ids][]", "" %>
+    <%= select_tag "settings[internal_role_ids][]",
+                   options_from_collection_for_select(roles, :id, :name, selected_internal_role_ids),
+                   multiple: true,
+                   size: [[roles.size, 8].min, 1].max %>
+    <em class="info"><%= l(:text_status_alias_internal_roles_hint) %></em>
   </p>
 
   <fieldset class="box">
@@ -43,4 +62,37 @@
   </fieldset>
 
   <p class="nodata"><%= l(:text_status_alias_behavior_hint) %></p>
+
+  <% if duplicate_alias_groups.any? %>
+    <div class="warning">
+      <p><strong><%= l(:label_status_alias_duplicate_aliases) %></strong></p>
+      <ul>
+        <% duplicate_alias_groups.each do |alias_id, source_ids| %>
+          <%
+            alias_status = statuses.detect { |status| status.id.to_s == alias_id }
+            source_names = source_ids.filter_map do |source_id|
+              source_status = statuses.detect { |status| status.id.to_s == source_id }
+              RedmineStatusAlias::Settings.raw_status_name(source_status) if source_status
+            end
+          %>
+          <% if alias_status && source_names.any? %>
+            <li>
+              <%= l(:text_status_alias_duplicate_aliases,
+                    alias_name: RedmineStatusAlias::Settings.raw_status_name(alias_status),
+                    source_names: source_names.join(", ")) %>
+            </li>
+          <% end %>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <% if missing_alias_ids.any? %>
+    <div class="warning">
+      <p>
+        <strong><%= l(:label_status_alias_missing_aliases) %></strong>
+        <%= l(:text_status_alias_missing_aliases, status_ids: missing_alias_ids.join(", ")) %>
+      </p>
+    </div>
+  <% end %>
 </div>

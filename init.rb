@@ -6,6 +6,9 @@ Rails.configuration.to_prepare do
   begin
     require_dependency "issue"
     require_dependency "issue_status"
+    require_dependency "issues_helper"
+    require_dependency "query"
+    require_dependency "reports_controller"
 
     if defined?(Issue) && !Issue.ancestors.include?(RedmineStatusAlias::IssuePatch)
       Issue.prepend RedmineStatusAlias::IssuePatch
@@ -13,6 +16,18 @@ Rails.configuration.to_prepare do
 
     if defined?(IssueStatus) && !IssueStatus.ancestors.include?(RedmineStatusAlias::IssueStatusPatch)
       IssueStatus.prepend RedmineStatusAlias::IssueStatusPatch
+    end
+
+    if defined?(IssuesHelper) && !IssuesHelper.ancestors.include?(RedmineStatusAlias::IssuesHelperPatch)
+      IssuesHelper.prepend RedmineStatusAlias::IssuesHelperPatch
+    end
+
+    if defined?(Query) && !Query.ancestors.include?(RedmineStatusAlias::QueryPatch)
+      Query.prepend RedmineStatusAlias::QueryPatch
+    end
+
+    if defined?(ReportsController) && !ReportsController.ancestors.include?(RedmineStatusAlias::ReportsControllerPatch)
+      ReportsController.prepend RedmineStatusAlias::ReportsControllerPatch
     end
   rescue StandardError => e
     warn "[redmine_status_alias] Failed to include patches: #{e.class}: #{e.message}"
@@ -30,7 +45,7 @@ Redmine::Plugin.register :redmine_status_alias do
   requires_redmine version_or_higher: "6.0.0"
 
   project_module :status_alias do
-    permission :view_status_aliases, {}, require: :member
+    permission :view_status_aliases, {}, public: true, read: true
   end
 
   settings default: RedmineStatusAlias::Settings::DEFAULTS,
